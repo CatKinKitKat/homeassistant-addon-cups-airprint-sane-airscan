@@ -1,0 +1,16 @@
+build_from:
+  aarch64: ghcr.io/hassio-addons/base:14.2.0
+  amd64: ghcr.io/hassio-addons/base:14.2.0
+  armv7: ghcr.io/hassio-addons/base:14.2.0
+
+args:
+  CUPS_VERSION: "2.4.11"
+  SANE_VERSION: "1.2.1"
+  
+squash: false
+labels:
+  org.opencontainers.image.title: "Home Assistant CUPS AirPrint & SANE AirScan Add-on"
+  org.opencontainers.image.description: "Unified print and scan server with CUPS AirPrint and SANE AirScan support"
+  org.opencontainers.image.source: "https://github.com/CatKinKitKat/homeassistant-addon-cups-airprint-sane-airscan"
+  org.opencontainers.image.authors: "CatKinKitKat"
+  org.opencontainers.image.licenses: "AGPL-3.0"

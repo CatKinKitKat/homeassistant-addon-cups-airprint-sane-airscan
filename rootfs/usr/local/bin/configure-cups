@@ -1,0 +1,140 @@
+#!/bin/bash
+#
+# CUPS AirPrint & SANE AirScan Unified Add-on for Home Assistant
+# CUPS Configuration Script
+# Copyright (C) 2025 CatKinKitKat
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+set -e
+
+# Get configuration options from Home Assistant
+LOG_LEVEL=$(bashio::config 'log_level')
+SHARE_PRINTERS=$(bashio::config 'share_printers')
+ALLOW_FROM=$(bashio::config 'allow_from')
+
+bashio::log.info "Configuring minimalist CUPS setup..."
+
+# Create persistent config if it doesn't exist
+if [ ! -d /config/cups ]; then
+    bashio::log.info "Creating initial CUPS configuration..."
+    cp -r /etc/cups /config/
+fi
+
+# Use persistent configuration
+rm -rf /etc/cups
+ln -sf /config/cups /etc/cups
+
+# Configure cupsd.conf
+bashio::log.info "Configuring cupsd.conf..."
+cat > /etc/cups/cupsd.conf << EOF
+# cupsd.conf - Auto-generated minimalist configuration
+LogLevel ${LOG_LEVEL}
+MaxLogSize 0
+ErrorPolicy retry-job
+
+# Network access
+Listen /run/cups/cups.sock
+Listen 0.0.0.0:631
+Port 631
+
+# AirPrint/Bonjour support
+Browsing $(bashio::var.true "${SHARE_PRINTERS}" && echo "Yes" || echo "No")
+BrowseLocalProtocols all
+
+# Authentication
+DefaultAuthType Basic
+WebInterface Yes
+
+# Access control - Allow from configured networks
+<Location />
+  Order allow,deny
+EOF
+
+# Add allowed networks
+for network in $(echo "${ALLOW_FROM}" | jq -r '.[]'); do
+    echo "  Allow from ${network}" >> /etc/cups/cupsd.conf
+done
+
+cat >> /etc/cups/cupsd.conf << 'EOF'
+</Location>
+
+<Location /admin>
+  Order allow,deny
+EOF
+
+for network in $(echo "${ALLOW_FROM}" | jq -r '.[]'); do
+    echo "  Allow from ${network}" >> /etc/cups/cupsd.conf
+done
+
+cat >> /etc/cups/cupsd.conf << 'EOF'
+</Location>
+
+<Location /admin/conf>
+  AuthType Default
+  Require user @SYSTEM
+  Order allow,deny
+</Location>
+
+# Default policy for printing
+<Policy default>
+  <Limit Create-Job Print-Job Print-URI Validate-Job>
+    Order deny,allow
+  </Limit>
+  
+  <Limit All>
+    Order deny,allow
+  </Limit>
+</Policy>
+EOF
+
+# Configure Avahi for AirPrint service discovery
+if bashio::var.true "${SHARE_PRINTERS}"; then
+    bashio::log.info "Configuring Avahi for AirPrint..."
+    cat > /etc/avahi/avahi-daemon.conf << EOF
+# avahi-daemon.conf - Auto-generated configuration
+[server]
+use-ipv4=yes
+use-ipv6=yes
+ratelimit-interval-usec=1000000
+ratelimit-burst=1000
+
+[wide-area]
+enable-wide-area=yes
+
+[publish]
+publish-hinfo=no
+publish-workstation=no
+
+[reflector]
+enable-reflector=yes
+EOF
+fi
+
+# Set proper permissions
+chown -R root:lp /etc/cups/
+chmod 755 /var/spool/cups
+
+# Create run directory
+mkdir -p /run/cups
+chmod 755 /run/cups
+
+bashio::log.info "CUPS minimalist configuration completed"
+bashio::log.info "Universal printer support enabled:"
+bashio::log.info "  CUPS Filters: IPP Everywhere, AirPrint, driverless printing"
+bashio::log.info "  Universal drivers for modern Canon, HP, Epson, Brother printers"
+bashio::log.info "  Auto-detection enabled for USB and network printers"
+if bashio::var.true "${SHARE_PRINTERS}"; then
+    bashio::log.info "AirPrint configured for service discovery"
+fi
