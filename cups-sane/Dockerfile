@@ -71,7 +71,7 @@ RUN apk add --no-cache \
 COPY rootfs /
 
 # Set permissions for both services
-RUN chmod +x /run.sh \
+RUN chmod +x /etc/services.d/app/run \
     && chmod +x /usr/local/bin/configure-cups \
     && chmod +x /usr/local/bin/configure-sane \
     && chown -R root:lp /etc/cups \

@@ -1,0 +1,55 @@
+name: CUPS AirPrint & SANE AirScan
+version: "1.0.0"
+slug: cups-airprint-sane-airscan
+description: Unified print and scan server with CUPS AirPrint and SANE AirScan support
+url: https://github.com/CatKinKitKat/homeassistant-addon-cups-airprint-sane-airscan
+arch:
+  - amd64
+  - aarch64
+  - armv7
+usb: true
+init: false
+startup: services
+homeassistant_api: false
+host_network: true
+privileged:
+  - SYS_ADMIN
+devices:
+  - /dev/bus/usb
+# Note: host_network: true makes port mappings unnecessary
+# All services are directly accessible on host IP
+options:
+  log_level: info
+  # CUPS options
+  share_printers: true
+  allow_from:
+    - "192.168.1.0/24"    # Most common home network
+    - "192.168.0.0/24"    # Second most common
+    - "10.0.0.0/24"       # Some routers use 10.x
+    - "172.16.0.0/24"     # Enterprise/Docker networks
+    - "127.0.0.1"         # Localhost
+  # Logging options
+  cups_log_to_stdout: true   # If true, send CUPS logs to stdout instead of files
+  cups_access_log: /var/log/cups/access_log
+  cups_error_log: /var/log/cups/error_log
+  cups_page_log: /var/log/cups/page_log
+  sane_debug: 0              # saned debug level (0 = none, up to ~255 very verbose)
+  debug_mode: false          # If true, dump generated configs to log
+  # SANE options
+  allowed_networks:
+    - "192.168.1.0/24"    # Most common home network
+    - "192.168.0.0/24"    # Second most common
+    - "10.0.0.0/24"       # Some routers use 10.x
+    - "172.16.0.0/24"     # Enterprise/Docker networks
+    - "127.0.0.1"         # Localhost
+schema:
+  log_level: list(trace|debug|info|notice|warning|error|fatal)
+  share_printers: bool
+  allow_from: ["str"]
+  cups_log_to_stdout: bool
+  cups_access_log: str
+  cups_error_log: str
+  cups_page_log: str
+  sane_debug: int
+  debug_mode: bool
+  allowed_networks: ["str"]

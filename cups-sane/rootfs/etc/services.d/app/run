@@ -1,0 +1,137 @@
+#!/command/with-contenv bashio
+#
+# CUPS AirPrint & SANE AirScan Unified Add-on for Home Assistant
+# Copyright (C) 2025 CatKinKitKat
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+# NOTE:
+# Using the official bashio wrapper in the shebang provides the bashio::*
+# functions. Previous revision sourced bashio manually and used a wrong
+# shebang, causing the script to abort before any logs (boot loop).
+set -eo pipefail  # Removed -u to allow unset variables during config reading
+
+# Set ulimits
+ulimit -n 524288
+
+# Get configuration options with error handling
+set +e  # Temporarily disable exit on error for config reading
+LOG_LEVEL=$(bashio::config 'log_level' 2>/dev/null || echo "info")
+SHARE_PRINTERS=$(bashio::config 'share_printers' 2>/dev/null || echo "true")
+ALLOW_FROM=$(bashio::config 'allow_from' 2>/dev/null || echo '[]')
+ALLOWED_NETWORKS=$(bashio::config 'allowed_networks' 2>/dev/null || echo '[]')
+CUPS_LOG_TO_STDOUT=$(bashio::config 'cups_log_to_stdout' 2>/dev/null || echo 'true')
+SANE_DEBUG_LEVEL=$(bashio::config 'sane_debug' 2>/dev/null || echo '0')
+DEBUG_MODE=$(bashio::config 'debug_mode' 2>/dev/null || echo 'false')
+set -e  # Re-enable exit on error
+
+bashio::log.info "Starting CUPS AirPrint & SANE AirScan Server v1.0.0"
+bashio::log.info "Log Level: ${LOG_LEVEL}"
+bashio::log.info "Config read successfully - proceeding with setup..."
+if bashio::var.true "${DEBUG_MODE}"; then
+    bashio::log.info "DEBUG MODE ENABLED: extra diagnostics will be shown"
+    bashio::log.info "Environment snapshot:"; env | sort | sed 's/^/ENV> /'
+fi
+
+# Configure CUPS
+bashio::log.info "Configuring CUPS daemon..."
+/usr/local/bin/configure-cups
+
+# Configure SANE
+bashio::log.info "Configuring SANE daemon..."
+/usr/local/bin/configure-sane
+
+# Start DBus daemon (required for Avahi)
+bashio::log.info "Starting DBus daemon..."
+mkdir -p /run/dbus
+if ! dbus-daemon --system --fork; then
+    bashio::log.warning "DBus failed to start - continuing without it"
+fi
+
+# Start Avahi daemon for both AirPrint and AirScan service discovery
+bashio::log.info "Starting Avahi daemon for service discovery..."
+if ! avahi-daemon --daemonize; then
+    bashio::log.warning "Avahi failed to start - continuing without service discovery"
+fi
+
+# Wait a moment for Avahi to start
+sleep 2
+
+# Start SANE daemon in background with optional debug
+bashio::log.info "Starting SANE daemon (debug level: ${SANE_DEBUG_LEVEL})..."
+if [ "${SANE_DEBUG_LEVEL}" -gt 0 ]; then
+    saned -d "${SANE_DEBUG_LEVEL}" --user=root &
+else
+    saned -l --user=root &
+fi
+
+# Also start saned on port 6566 for network access
+bashio::log.info "Starting SANE daemon for network access..."
+saned -a root &
+
+# Wait a moment for SANE to start and scan for devices
+sleep 3
+bashio::log.info "Scanning for available devices..."
+scanimage -L || bashio::log.warning "No scanners found or scanimage failed"
+
+# Show airscan discovery if available
+if command -v airscan-discover >/dev/null 2>&1; then
+    bashio::log.info "Running AirScan discovery..."
+    timeout 10 airscan-discover || bashio::log.info "AirScan discovery completed or timed out"
+fi
+
+# Wait a moment for SANE to start
+sleep 1
+
+# Create required CUPS directories and set permissions
+bashio::log.info "Setting up CUPS runtime directories..."
+mkdir -p /var/cache/cups
+mkdir -p /var/spool/cups
+mkdir -p /var/run/cups
+mkdir -p /var/log/cups
+chown -R root:root /var/cache/cups /var/spool/cups /var/run/cups /var/log/cups
+chmod 755 /var/cache/cups /var/spool/cups /var/run/cups /var/log/cups
+
+# Test CUPS configuration
+bashio::log.info "Testing CUPS configuration..."
+if cupsd -t; then
+    bashio::log.info "CUPS configuration test passed"
+else
+    bashio::log.error "CUPS configuration test failed!"
+    bashio::log.error "Checking CUPS configuration file:"
+    cat /etc/cups/cupsd.conf
+    if bashio::var.true "${DEBUG_MODE}"; then
+        bashio::log.error "Listing /etc/cups:"; ls -l /etc/cups | sed 's/^/CUPS-LS> /'
+    fi
+    exit 1
+fi
+
+# Show what we're about to start
+bashio::log.info "CUPS will listen on:"
+bashio::log.info "  - Unix socket: /run/cups/cups.sock"
+bashio::log.info "  - TCP port: 0.0.0.0:631"
+bashio::log.info "Network mode: host_network (direct host access)"
+
+# Start CUPS daemon (foreground process)
+bashio::log.info "Starting CUPS daemon in foreground..."
+if bashio::var.false "${CUPS_LOG_TO_STDOUT}"; then
+    # Ensure log directory exists and tail logs to stdout for HA capture
+    mkdir -p /var/log/cups
+    touch /var/log/cups/error_log /var/log/cups/access_log /var/log/cups/page_log || true
+    tail -F /var/log/cups/error_log /var/log/cups/access_log /var/log/cups/page_log &
+fi
+if bashio::var.true "${DEBUG_MODE}"; then
+    bashio::log.info "Process list before starting CUPS:"; ps axo pid,ppid,stat,cmd | sed 's/^/PS> /'
+fi
+exec cupsd -f

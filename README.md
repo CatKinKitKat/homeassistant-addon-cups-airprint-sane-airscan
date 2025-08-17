@@ -1,4 +1,4 @@
-# Home Assistant CUPS AirPrint & SANE AirScan Add-on (Unified)
+# Home Assistant CUPS AirPrint & SANE AirScan Add-on
 
 [![Home Assistant Add-on](https://img.shields.io/badge/Home%20Assistant-Add--on-blue.svg)](https://github.com/CatKinKitKat/homeassistant-addon-cups-airprint-sane-airscan)
 [![License](https://img.shields.io/github/license/CatKinKitKat/homeassistant-addon-cups-airprint-sane-airscan)](LICENSE)

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/command/with-contenv bashio
 #
 # CUPS AirPrint & SANE AirScan Unified Add-on for Home Assistant
 # SANE Configuration Script
@@ -17,10 +17,12 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-set -e
+set -euo pipefail
 
-# Get configuration options from Home Assistant
-ALLOWED_NETWORKS=$(bashio::config 'allowed_networks')
+# Get configuration options from Home Assistant with error handling
+set +e  # Temporarily disable exit on error for config reading
+ALLOWED_NETWORKS=$(bashio::config 'allowed_networks' 2>/dev/null || echo '[]')
+set -e  # Re-enable exit on error
 
 bashio::log.info "Configuring minimalist SANE setup..."
 
@@ -34,15 +36,19 @@ cat > /etc/sane.d/saned.conf << EOF
 EOF
 
 # Add allowed networks
-for network in $(echo "${ALLOWED_NETWORKS}" | jq -r '.[]'); do
+for network in $(echo "${ALLOWED_NETWORKS}" | jq -r '.[]' 2>/dev/null || echo "192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1"); do
     echo "${network}" >> /etc/sane.d/saned.conf
 done
 
 # Configure net.conf for network scanning
 bashio::log.info "Configuring net.conf..."
+# Get the Home Assistant supervisor IP for better network scanning
+HA_IP=$(ip route get 1.1.1.1 | awk '{print $7; exit}' 2>/dev/null || echo "127.0.0.1")
 cat > /etc/sane.d/net.conf << EOF
 # net backend config file - Auto-generated
 localhost
+${HA_IP}
+# Connect to SANE daemon on these hosts for network scanning
 EOF
 
 # Configure dll.conf with auto-detection and optimal backends
@@ -137,7 +143,10 @@ cat > /etc/sane.d/airscan.conf << EOF
 
 [devices]
 # Manually configured devices can be added here
-# Example: "Scanner Name" = http://192.168.1.100:9095/eSCL
+# Examples for common home network (192.168.1.x):
+# "Canon PIXMA" = http://192.168.1.150:80/eSCL
+# "HP LaserJet" = http://192.168.1.151:8080/eSCL
+# "Epson Scanner" = http://192.168.1.152:9095/eSCL
 
 [options]
 # Enable automatic discovery (default)

@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/command/with-contenv bashio
 #
 # CUPS AirPrint & SANE AirScan Unified Add-on for Home Assistant
 # CUPS Configuration Script
@@ -17,19 +17,27 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-set -e
+set -euo pipefail
 
-# Get configuration options from Home Assistant
-LOG_LEVEL=$(bashio::config 'log_level')
-SHARE_PRINTERS=$(bashio::config 'share_printers')
-ALLOW_FROM=$(bashio::config 'allow_from')
+# Get configuration options from Home Assistant with error handling
+set +e  # Temporarily disable exit on error for config reading
+LOG_LEVEL=$(bashio::config 'log_level' 2>/dev/null || echo "info")
+SHARE_PRINTERS=$(bashio::config 'share_printers' 2>/dev/null || echo "true")
+ALLOW_FROM=$(bashio::config 'allow_from' 2>/dev/null || echo '[]')
+CUPS_LOG_TO_STDOUT=$(bashio::config 'cups_log_to_stdout' 2>/dev/null || echo 'true')
+CUPS_ACCESS_LOG=$(bashio::config 'cups_access_log' 2>/dev/null || echo '/var/log/cups/access_log')
+CUPS_ERROR_LOG=$(bashio::config 'cups_error_log' 2>/dev/null || echo '/var/log/cups/error_log')
+CUPS_PAGE_LOG=$(bashio::config 'cups_page_log' 2>/dev/null || echo '/var/log/cups/page_log')
+DEBUG_MODE=$(bashio::config 'debug_mode' 2>/dev/null || echo 'false')
+set -e  # Re-enable exit on error
 
 bashio::log.info "Configuring minimalist CUPS setup..."
 
 # Create persistent config if it doesn't exist
 if [ ! -d /config/cups ]; then
     bashio::log.info "Creating initial CUPS configuration..."
-    cp -r /etc/cups /config/
+    mkdir -p /config/cups
+    cp -r /etc/cups/* /config/cups/ 2>/dev/null || true
 fi
 
 # Use persistent configuration
@@ -38,11 +46,26 @@ ln -sf /config/cups /etc/cups
 
 # Configure cupsd.conf
 bashio::log.info "Configuring cupsd.conf..."
+if bashio::var.true "${CUPS_LOG_TO_STDOUT}"; then
+  ACCESS_LOG='-'
+  ERROR_LOG='-'
+  PAGE_LOG='-'
+  bashio::log.info "CUPS logs directed to stdout"
+else
+  ACCESS_LOG="${CUPS_ACCESS_LOG}"
+  ERROR_LOG="${CUPS_ERROR_LOG}"
+  PAGE_LOG="${CUPS_PAGE_LOG}"
+  bashio::log.info "CUPS logs directed to files under /var/log/cups (tailing will be enabled)"
+fi
+
 cat > /etc/cups/cupsd.conf << EOF
 # cupsd.conf - Auto-generated minimalist configuration
 LogLevel ${LOG_LEVEL}
 MaxLogSize 0
 ErrorPolicy retry-job
+ErrorLog ${ERROR_LOG}
+AccessLog ${ACCESS_LOG}
+PageLog ${PAGE_LOG}
 
 # Network access
 Listen /run/cups/cups.sock
@@ -60,10 +83,11 @@ WebInterface Yes
 # Access control - Allow from configured networks
 <Location />
   Order allow,deny
+  Allow all
 EOF
 
-# Add allowed networks
-for network in $(echo "${ALLOW_FROM}" | jq -r '.[]'); do
+# Add allowed networks (legacy Allow directives for compatibility)
+for network in $(echo "${ALLOW_FROM}" | jq -r '.[]' 2>/dev/null || echo "192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1"); do
     echo "  Allow from ${network}" >> /etc/cups/cupsd.conf
 done
 
@@ -72,9 +96,10 @@ cat >> /etc/cups/cupsd.conf << 'EOF'
 
 <Location /admin>
   Order allow,deny
+  Allow all
 EOF
 
-for network in $(echo "${ALLOW_FROM}" | jq -r '.[]'); do
+for network in $(echo "${ALLOW_FROM}" | jq -r '.[]' 2>/dev/null || echo "192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1"); do
     echo "  Allow from ${network}" >> /etc/cups/cupsd.conf
 done
 
@@ -85,6 +110,7 @@ cat >> /etc/cups/cupsd.conf << 'EOF'
   AuthType Default
   Require user @SYSTEM
   Order allow,deny
+  Allow all
 </Location>
 
 # Default policy for printing
@@ -131,6 +157,9 @@ mkdir -p /run/cups
 chmod 755 /run/cups
 
 bashio::log.info "CUPS minimalist configuration completed"
+if bashio::var.true "${DEBUG_MODE}"; then
+  bashio::log.info "Dumping generated cupsd.conf:"; sed 's/^/CUPS-CONF> /' /etc/cups/cupsd.conf
+fi
 bashio::log.info "Universal printer support enabled:"
 bashio::log.info "  CUPS Filters: IPP Everywhere, AirPrint, driverless printing"
 bashio::log.info "  Universal drivers for modern Canon, HP, Epson, Brother printers"
