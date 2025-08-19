@@ -1,0 +1,35 @@
+name: Smoke Test Add-on
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  smoke-test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build container
+        run: docker build -t cups-sane-test ./cups-sane
+
+      - name: Run container (background)
+        run: |
+          docker run -d --name cups-sane-test -p 631:631 -p 8090:8090 cups-sane-test
+          sleep 10
+
+      - name: Smoke test CUPS port
+        run: |
+          curl --fail http://localhost:631 || (echo "CUPS not responding" && exit 1)
+
+      - name: Smoke test AirSane port
+        run: |
+          curl --fail http://localhost:8090 || (echo "AirSane not responding" && exit 1)
+
+      - name: Stop and remove container
+        run: docker rm -f cups-sane-test
