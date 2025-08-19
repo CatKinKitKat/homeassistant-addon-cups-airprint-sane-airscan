@@ -22,8 +22,8 @@ This unified addon has been successfully built and tested with:
 - **Universal Drivers**: IPP Everywhere and driverless printing support
 
 ### 🔍 **SANE Scanning**
-- **SANE Daemon**: Complete SANE server implementation with network sharing
-- **AirScan Support**: eSCL/AirScan protocol for modern network scanners
+- **AirSane eSCL Server**: Share scanners over the network using the AirScan protocol
+- **AirScan Client Support**: Discover network scanners via eSCL/WS-Discovery
 - **Comprehensive Backends**: Optimal backends for all major scanner brands
 - **Auto-Detection**: Automatic USB and network scanner detection
 
@@ -105,14 +105,14 @@ allowed_networks:
 
 ### **Network Access**
 - **CUPS Web Interface**: Port 631 (HTTP)
-- **SANE Network Scanning**: Port 6566
+- **AirSane eSCL Scanning**: Port 8090
 - **Service Discovery**: Automatic via Avahi
 
 ## Technical Details
 
 ### **Ports**
 - `631/tcp`: CUPS web interface and IPP printing
-- `6566/tcp`: SANE daemon port for network scanning
+- `8090/tcp`: AirSane eSCL server port for network scanning
 
 ### **Volumes**
 - Configuration is stored in `/config/cups` for persistence

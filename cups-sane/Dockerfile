@@ -31,12 +31,13 @@ RUN apk add --no-cache \
     bash \
     avahi \
     avahi-tools \
+    avahi-compat-libdns_sd \
+    nss-mdns \
     dbus \
     && rm -rf /var/cache/apk/*
 
 RUN apk add --no-cache \
     sane \
-    sane-saned \
     sane-utils \
     sane-airscan \
     && rm -rf /var/cache/apk/*
@@ -67,6 +68,24 @@ RUN apk add --no-cache \
     shadow \
     && rm -rf /var/cache/apk/*
 
+# Build and install AirSane for eSCL/AirScan sharing
+ARG AIRSANE_VERSION="v0.4.5"
+RUN apk add --no-cache --virtual .build-deps \
+        build-base \
+        cmake \
+        git \
+        libjpeg-turbo-dev \
+        libpng-dev \
+        libusb-dev \
+        avahi-dev \
+        sane-dev \
+    && git clone --depth 1 --branch ${AIRSANE_VERSION} https://github.com/SimulPiscator/AirSane.git /tmp/AirSane \
+    && cmake -S /tmp/AirSane -B /tmp/AirSane/build \
+    && cmake --build /tmp/AirSane/build --target airsaned \
+    && install -m755 /tmp/AirSane/build/airsaned /usr/local/bin/airsaned \
+    && rm -rf /tmp/AirSane \
+    && apk del .build-deps
+
 # Copy root filesystem
 COPY rootfs /
 
@@ -82,7 +101,7 @@ RUN chmod +x /etc/services.d/app/run \
 
 # Health check for both services
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD (lpstat -r && nc -z localhost 6566) || exit 1
+    CMD (lpstat -r && nc -z localhost 8090) || exit 1
 
-# Expose both ports
-EXPOSE 631 6566
+# Expose CUPS and AirSane ports
+EXPOSE 631 8090
