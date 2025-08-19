@@ -1,6 +1,7 @@
+
 # CUPS AirPrint & SANE AirScan Add-on
 
-A unified print and scan server for Home Assistant that provides CUPS printing with AirPrint support and SANE scanning with AirScan compatibility.
+A unified print and scan server for Home Assistant that provides CUPS printing with AirPrint support and SANE scanning with AirScan compatibility. Now based on Debian for broader compatibility and easier package management.
 
 ## About
 
@@ -13,7 +14,8 @@ This add-on combines two essential services into one efficient container:
 - 🖨️ **Universal Printing**: Support for Canon, Epson, HP, Brother, and other modern printers
 - 📱 **AirPrint Compatible**: Print wirelessly from iOS, macOS, and Windows devices
 - 🔍 **Network Scanning**: Share USB scanners over the network
-- 📲 **AirScan Support**: Scan from mobile devices using eSCL protocol
+- 📦 **HP Backend**: Basic support for USB HP scanners via SANE `hp` driver
+- 📲 **AirSane eSCL Server**: Share USB scanners via the AirScan protocol
 - 🔌 **USB Support**: Direct connection to USB printers and scanners
 - 🌐 **Auto-Discovery**: Automatic detection of network printers and scanners
 
@@ -75,7 +77,7 @@ Once printers are added and shared:
 ## Network Requirements
 
 - **Port 631**: CUPS web interface and IPP printing
-- **Port 6566**: SANE daemon for network scanning
+- **Port 8090**: AirSane eSCL server for network scanning
 - **mDNS/Bonjour**: For automatic service discovery
 
 ## Troubleshooting

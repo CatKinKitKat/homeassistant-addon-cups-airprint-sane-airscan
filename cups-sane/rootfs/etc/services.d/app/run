@@ -1,4 +1,5 @@
 #!/command/with-contenv bashio
+# shellcheck shell=bash
 #
 # CUPS AirPrint & SANE AirScan Unified Add-on for Home Assistant
 # Copyright (C) 2025 CatKinKitKat
@@ -68,22 +69,19 @@ fi
 # Wait a moment for Avahi to start
 sleep 2
 
-# Start SANE daemon in background with optional debug
-bashio::log.info "Starting SANE daemon (debug level: ${SANE_DEBUG_LEVEL})..."
-if [ "${SANE_DEBUG_LEVEL}" -gt 0 ]; then
-    saned -d "${SANE_DEBUG_LEVEL}" --user=root &
-else
-    saned -l --user=root &
-fi
-
-# Also start saned on port 6566 for network access
-bashio::log.info "Starting SANE daemon for network access..."
-saned -a root &
-
-# Wait a moment for SANE to start and scan for devices
-sleep 3
+# Scan for connected devices
 bashio::log.info "Scanning for available devices..."
 scanimage -L || bashio::log.warning "No scanners found or scanimage failed"
+
+# Start AirSane eSCL server
+bashio::log.info "Starting AirSane eSCL server on port 8090..."
+AIRSANE_OPTS="--access-log=- --disclose-version=false"
+if [ "${SANE_DEBUG_LEVEL}" -gt 0 ] || bashio::var.true "${DEBUG_MODE}"; then
+    AIRSANE_OPTS="${AIRSANE_OPTS} --debug=true"
+else
+    AIRSANE_OPTS="${AIRSANE_OPTS} --debug=false"
+fi
+airsaned "${AIRSANE_OPTS}" &
 
 # Show airscan discovery if available
 if command -v airscan-discover >/dev/null 2>&1; then
@@ -122,6 +120,7 @@ bashio::log.info "CUPS will listen on:"
 bashio::log.info "  - Unix socket: /run/cups/cups.sock"
 bashio::log.info "  - TCP port: 0.0.0.0:631"
 bashio::log.info "Network mode: host_network (direct host access)"
+bashio::log.info "AirSane will listen on: 0.0.0.0:8090"
 
 # Start CUPS daemon (foreground process)
 bashio::log.info "Starting CUPS daemon in foreground..."

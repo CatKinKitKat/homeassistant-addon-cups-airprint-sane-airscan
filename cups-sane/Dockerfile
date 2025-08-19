@@ -1,4 +1,4 @@
-FROM ghcr.io/hassio-addons/base:14.2.0
+FROM ghcr.io/hassio-addons/debian-base:7.8.3
 
 LABEL io.hass.version="1.0.0" \
       io.hass.type="addon" \
@@ -6,83 +6,77 @@ LABEL io.hass.version="1.0.0" \
       maintainer="CatKinKitKat" \
       description="Unified CUPS AirPrint and SANE AirScan server with comprehensive printer and scanner support"
 
-# Set shell
-SHELL ["/bin/ash", "-o", "pipefail", "-c"]
-
-# Add env
+SHELL ["/bin/bash", "-c"]
 ENV TERM="xterm-256color"
 
-# Create necessary directories for both CUPS and SANE
-RUN mkdir -p /var/spool/cups \
-    && mkdir -p /var/log/cups \
-    && mkdir -p /run/cups \
-    && mkdir -p /var/lock/sane \
-    && mkdir -p /var/log/sane
+# CUPS/SANE runtime dirs
+RUN mkdir -p /var/spool/cups /var/log/cups /run/cups \
+    && mkdir -p /var/lock/sane /var/log/sane
 
-# Add edge repositories for sane-airscan availability
-RUN echo "https://dl-cdn.alpinelinux.org/alpine/edge/main" >> /etc/apk/repositories \
-    && echo "https://dl-cdn.alpinelinux.org/alpine/edge/community" >> /etc/apk/repositories
+# --- Core OS + Avahi/mDNS + tools (nc for healthcheck)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      bash ca-certificates curl dbus \
+      avahi-daemon avahi-utils libnss-mdns \
+      netcat-openbsd \
+    && rm -rf /var/lib/apt/lists/*
 
-# Force upgrade openssl to resolve conflicts
-RUN apk update && apk add --upgrade openssl libcrypto3 libssl3
+# --- SANE (driverless AirScan + classic backends)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      libsane1 libsane-common sane-utils sane-airscan libsane-hpaio \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install packages step by step to isolate issues
-RUN apk add --no-cache \
-    bash \
-    avahi \
-    avahi-tools \
-    dbus \
-    && rm -rf /var/cache/apk/*
+# --- CUPS + filters + IPP-over-USB
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      cups cups-client \
+      cups-filters cups-filters-core-drivers cups-browsed \
+      ghostscript \
+      ipp-usb \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN apk add --no-cache \
-    sane \
-    sane-saned \
-    sane-utils \
-    sane-airscan \
-    && rm -rf /var/cache/apk/*
+# --- Broad printer drivers (brand coverage)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      hplip printer-driver-hpcups printer-driver-postscript-hp \
+      printer-driver-gutenprint \
+      printer-driver-escpr \
+      printer-driver-brlaser \
+      printer-driver-splix \
+      printer-driver-fujixerox \
+      printer-driver-foo2zjs \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN apk add --no-cache \
-    sane-backend-net \
-    sane-backend-pixma \
-    sane-backend-epson2 \
-    sane-backend-hp \
-    sane-backend-canon \
-    sane-backend-canon_dr \
-    sane-backend-fujitsu \
-    sane-backend-kodak \
-    sane-backend-plustek \
-    sane-backend-umax \
-    sane-backend-lexmark \
-    sane-backend-ricoh \
-    sane-backend-sharp \
-    && rm -rf /var/cache/apk/*
+# --- Build and install AirSane (eSCL/AirScan sharing for SANE devices)
+ARG AIRSANE_VERSION="v0.4.5"
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      build-essential cmake git \
+      libjpeg-dev libpng-dev libusb-1.0-0-dev libavahi-client-dev libsane-dev \
+    && git clone --depth 1 --branch "${AIRSANE_VERSION}" https://github.com/SimulPiscator/AirSane.git /tmp/AirSane \
+    && cmake -S /tmp/AirSane -B /tmp/AirSane/build \
+    && cmake --build /tmp/AirSane/build --target airsaned \
+    && install -m755 /tmp/AirSane/build/airsaned /usr/local/bin/airsaned \
+    && rm -rf /tmp/AirSane \
+    && apt-get purge -y --auto-remove \
+         build-essential cmake git \
+         libjpeg-dev libpng-dev libusb-1.0-0-dev libavahi-client-dev libsane-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# Try CUPS separately at the end
-RUN apk add --no-cache \
-    cups \
-    cups-client \
-    cups-libs \
-    cups-filters \
-    cups-filters-libs \
-    shadow \
-    && rm -rf /var/cache/apk/*
-
-# Copy root filesystem
+# Copy s6-overlay v3 service definitions + helper scripts
+# Expecting your rootfs to use: /etc/s6-overlay/s6-rc.d/* (v3), /etc/cont-init.d/*, etc.
 COPY rootfs /
 
-# Set permissions for both services
-RUN chmod +x /etc/services.d/app/run \
-    && chmod +x /usr/local/bin/configure-cups \
-    && chmod +x /usr/local/bin/configure-sane \
+# Permissions & users (after packages so groups exist)
+RUN chmod +x /usr/local/bin/configure-cups /usr/local/bin/configure-sane || true \
+    && find /etc/s6-overlay/s6-rc.d -type f -name run -exec chmod +x {} + || true \
+    && groupadd -f lp \
+    && id -u print &>/dev/null || useradd -r -s /usr/sbin/nologin -g lp -G lpadmin,scanner print \
     && chown -R root:lp /etc/cups \
     && chmod 755 /var/spool/cups \
-    && adduser -D -G lp print \
     && chown -R root:root /etc/sane.d \
     && chmod 755 /var/lock/sane
 
-# Health check for both services
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD (lpstat -r && nc -z localhost 6566) || exit 1
+# Health check: CUPS scheduler up and AirSane HTTP port open
+HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+  CMD lpstat -r >/dev/null 2>&1 && nc -z -w2 127.0.0.1 631 && nc -z -w2 127.0.0.1 8090 || exit 1
 
-# Expose both ports
-EXPOSE 631 6566
+# Ports:
+# 631/tcp (IPP/CUPS), 8090/tcp (AirSane UI/API), 5353/udp (mDNS/Bonjour)
+EXPOSE 631/tcp 8090/tcp 5353/udp
