@@ -1,0 +1,30 @@
+name: Improvement Request
+description: Something could be better? Explain what and why.
+title: "[Improvement]: "
+labels: [improvement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Improvement Request
+        Be specific about what should change.
+  - type: textarea
+    id: context
+    attributes:
+      label: What's the problem?
+      description: "What's not good enough?"
+      placeholder: "The current code for... is slow/unclear."
+    validations:
+      required: true
+  - type: textarea
+    id: benefits
+    attributes:
+      label: Why improve it?
+      description: "Why does it matter?"
+      placeholder: "It'll save time, make things faster, etc."
+  - type: textarea
+    id: details
+    attributes:
+      label: What's your fix?
+      description: "What should change exactly?"
+      placeholder: "Rewrite the function, change the UI, etc."

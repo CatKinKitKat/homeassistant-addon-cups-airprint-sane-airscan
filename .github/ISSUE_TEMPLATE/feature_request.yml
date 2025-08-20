@@ -1,0 +1,35 @@
+name: Feature Request
+description: Have an idea? Explain it clearly.
+title: "[Feature]: "
+labels: [feature]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Feature Request
+        Say what you want and why it matters.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the problem?
+      description: "What's missing or inconvenient?"
+      placeholder: "I hate when..."
+  - type: textarea
+    id: solution
+    attributes:
+      label: What's your idea?
+      description: "Describe the feature clearly."
+      placeholder: "Add a button that..."
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives
+      description: "Other approaches you considered?"
+      placeholder: "I tried... but it didn't work."
+  - type: textarea
+    id: additional
+    attributes:
+      label: Anything else?
+      description: "Screenshots, context, or other details."

@@ -1,0 +1,38 @@
+name: Bug Report
+description: Found a bug? Report it clearly.
+title: "[Bug]: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## Bug Report
+        Say what's broken, directly.
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: "OS, browser, version, or anything relevant."
+      placeholder: "e.g., Linux, Firefox 100"
+  - type: textarea
+    id: description
+    attributes:
+      label: What's wrong?
+      description: "Describe the bug clearly."
+      placeholder: "What happened? What should happen?"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: "How can we see the bug?"
+      placeholder: "1. Do this\n2. Do that\n3. See error"
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs/Screenshots
+      description: "Add errors or screenshots if helpful."
+      render: bash
