@@ -1,10 +1,10 @@
 FROM ghcr.io/hassio-addons/debian-base:7.8.3
 
-LABEL io.hass.version="1.0.0" \
-      io.hass.type="addon" \
-      io.hass.arch="aarch64|amd64|armv7" \
-      maintainer="CatKinKitKat" \
-      description="Unified CUPS AirPrint and SANE AirScan server with comprehensive printer and scanner support"
+LABEL io.hass.version="1.1.0" \
+  io.hass.type="addon" \
+  io.hass.arch="aarch64|amd64|armv7" \
+  maintainer="CatKinKitKat" \
+  description="Unified CUPS AirPrint and SANE AirScan server with comprehensive printer and scanner support"
 
 SHELL ["/bin/bash", "-c"]
 ENV TERM="xterm-256color"

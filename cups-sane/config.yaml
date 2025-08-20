@@ -1,5 +1,5 @@
 name: CUPS AirPrint & SANE AirScan
-version: "1.0.0"
+version: "1.1.0"
 slug: cups-airprint-sane-airscan
 description: Unified print and scan server with CUPS AirPrint and SANE AirScan support
 url: https://github.com/CatKinKitKat/homeassistant-addon-cups-airprint-sane-airscan
