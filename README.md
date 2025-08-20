@@ -161,3 +161,4 @@ This project is licensed under the GNU Affero General Public License v3.0 (AGPL-
 - Based on the original CUPS AirPrint and SANE add-ons
 - Uses the Home Assistant Add-ons base image
 - Incorporates sane-airscan for modern network scanner support
+- Big thanks to @zajac-grzegorz, @niallr, and @arest for their earlier work on related add-ons.
