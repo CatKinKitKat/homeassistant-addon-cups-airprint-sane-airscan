@@ -4,19 +4,7 @@
 # CUPS AirPrint & SANE AirScan Unified Add-on for Home Assistant
 # SANE Configuration Script
 # Copyright (C) 2025 CatKinKitKat
-#
-# This program is free software: you can redistribute it and/or modify
-# it under the terms of the GNU Affero General Public License as published by
-# the Free Software Foundation, either version 3 of the License, or
-# (at your option) any later version.
-#
-# This program is distributed in the hope that it will be useful,
-# but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-# GNU Affero General Public License for more details.
-#
-# You should have received a copy of the GNU Affero General Public License
-# along with this program. If not, see <https://www.gnu.org/licenses/>.
+# License: AGPL-3.0-or-later
 
 set -euo pipefail
 
@@ -27,39 +15,46 @@ set -e  # Re-enable exit on error
 
 bashio::log.info "Configuring minimalist SANE setup..."
 
-# Configure saned.conf
-bashio::log.info "Configuring saned.conf..."
-cat > /etc/sane.d/saned.conf << EOF
+mkdir -p /etc/sane.d
+
+# saned.conf — create only if missing
+bashio::log.info "Ensuring saned.conf exists (no overwrite)..."
+if [ ! -f /etc/sane.d/saned.conf ]; then
+  cat > /etc/sane.d/saned.conf << 'EOF'
 # saned.conf - Auto-generated minimalist configuration
 
 ## Access list
 # Allowed networks for scanning access
 EOF
+  # Add allowed networks
+  for network in $(echo "${ALLOWED_NETWORKS}" | jq -r '.[]' 2>/dev/null || echo "192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1"); do
+      echo "${network}" >> /etc/sane.d/saned.conf
+  done
+else
+  bashio::log.info "saned.conf already present; leaving it unchanged."
+fi
 
-# Add allowed networks
-for network in $(echo "${ALLOWED_NETWORKS}" | jq -r '.[]' 2>/dev/null || echo "192.168.0.0/16 10.0.0.0/8 172.16.0.0/12 127.0.0.1"); do
-    echo "${network}" >> /etc/sane.d/saned.conf
-done
-
-# Configure net.conf for network scanning
-bashio::log.info "Configuring net.conf..."
-# Get the Home Assistant supervisor IP for better network scanning
-HA_IP=$(ip route get 1.1.1.1 | awk '{print $7; exit}' 2>/dev/null || echo "127.0.0.1")
-cat > /etc/sane.d/net.conf << EOF
+# net.conf — create only if missing
+bashio::log.info "Ensuring net.conf exists (no overwrite)..."
+if [ ! -f /etc/sane.d/net.conf ]; then
+  HA_IP=$(ip route get 1.1.1.1 | awk '{print $7; exit}' 2>/dev/null || echo "127.0.0.1")
+  cat > /etc/sane.d/net.conf << EOF
 # net backend config file - Auto-generated
 localhost
 ${HA_IP}
 # Connect to SANE daemon on these hosts for network scanning
 EOF
-
-# Configure dll.conf with auto-detection and optimal backends
-# Use predefined dll.conf if provided, otherwise create a minimal one
-bashio::log.info "Configuring dll.conf..."
-if [ -f /etc/sane.d/dll.conf ]; then
-    bashio::log.info "Using existing dll.conf with manually specified backends"
 else
-    bashio::log.info "Creating default dll.conf with basic backends"
-    cat > /etc/sane.d/dll.conf << 'EOF'
+  bashio::log.info "net.conf already present; leaving it unchanged."
+fi
+
+# dll.conf — use existing, else template, else generate a sane default
+bashio::log.info "Ensuring dll.conf exists (no overwrite)..."
+if [ -f /etc/sane.d/dll.conf ]; then
+  bashio::log.info "Using existing dll.conf with manually specified backends."
+else
+  bashio::log.info "Creating default dll.conf with basic backends."
+  cat > /etc/sane.d/dll.conf << 'EOF'
 # Core USB backend (moved to top)
 usb
 
@@ -69,48 +64,23 @@ airscan
 
 # HP (market leader ~34%)
 hpaio
-# Legacy / device-specific HP backends
-#hp
-#hpljm1005
-#hp3500
-#hp3900
-#hp4200
-#hp5400
-#hp5590
 
 # Epson (~22%)
 epson2
 epson
-#epsonds   # old
 
 # Canon (~20%)
 pixma
 canon
-#canon_dr   # old
-#canon630u  # old
 
 # Brother (~10%)
 brother
-#brother3   # old
-#brother4   # old
 
 # Ricoh (~3-4%)
 ricoh
 ricoh2
 
 # Other vendors (<3% each, mostly legacy)
-#fujitsu
-#kodak
-#kodakaio
-#lexmark
-#sharp
-#plustek
-#plustek_pp
-#umax
-#umax1220u
-#umax_pp
-
-# Additional common backends
 genesys
 gt68xx
 microtek
@@ -119,20 +89,13 @@ mustek
 mustek_usb
 mustek_usb2
 snapscan
-#ma1509      # very rare
-#matsushita  # very rare
-#pie         # very rare
-#sm3840      # very rare
-#teco1       # very rare
-#teco2       # very rare
-#teco3       # very rare
-#u12         # very rare
 EOF
 fi
 
-# Configure airscan.conf for network scanner discovery
-bashio::log.info "Configuring AirScan for network scanner discovery..."
-cat > /etc/sane.d/airscan.conf << EOF
+# airscan.conf — create only if missing
+bashio::log.info "Ensuring airscan.conf exists (no overwrite)..."
+if [ ! -f /etc/sane.d/airscan.conf ]; then
+  cat > /etc/sane.d/airscan.conf << 'EOF'
 # airscan.conf - Auto-generated configuration for network scanner discovery
 
 [devices]
@@ -143,49 +106,28 @@ cat > /etc/sane.d/airscan.conf << EOF
 # "Epson Scanner" = http://192.168.1.152:9095/eSCL
 
 [options]
-# Enable automatic discovery (default)
 discovery = enable
-
-# Use network device name for display (more user-friendly)
 model = network
-
-# Auto-select best protocol (eSCL vs WSD)
 protocol = auto
-
-# Use fast WS-Discovery mode (default)
 ws-discovery = fast
-
-# Treat remote scanners as local (helps with saned sharing)
 pretend-local = true
 
 [debug]
-# Basic logging enabled
 enable = true
 
 [blacklist]
 # No devices blacklisted by default
 EOF
+else
+  bashio::log.info "airscan.conf already present; leaving it unchanged."
+fi
 
-# Set proper permissions
+# Permissions & lock dir
 chown -R root:root /etc/sane.d/
-chmod 644 /etc/sane.d/*.conf
-
-# Create lock directory
+chmod 644 /etc/sane.d/*.conf || true
 mkdir -p /var/lock/sane
 chmod 755 /var/lock/sane
 
-bashio::log.info "SANE minimalist configuration completed"
-bashio::log.info "Optimal backends enabled by brand:"
-bashio::log.info "  Canon: pixma (best for PIXMA/MFPs)"
-bashio::log.info "  Epson: epson2 (newer, better than old epson)"
-bashio::log.info "  HP: hp and related legacy backends"
-bashio::log.info "  Brother: brother (may need proprietary drivers for some models)"
-bashio::log.info "  Fujitsu: fujitsu (fi-series, ScanSnap support)"
-bashio::log.info "  Kodak: kodak (flatbeds + ADF scanners)"
-bashio::log.info "  Plustek: plustek (USB models)"
-bashio::log.info "  UMAX: umax (legacy devices)"
-bashio::log.info "  Lexmark: lexmark (older AIOs)"
-bashio::log.info "  Ricoh: fujitsu (Ricoh ADFs are rebadged Fujitsu)"
-bashio::log.info "  Sharp: sharp (niche models)"
-bashio::log.info "Auto-detection enabled for USB and network scanners"
-bashio::log.info "AirScan configured for network scanner discovery"
+bashio::log.info "SANE minimalist configuration completed (existing files preserved)."
+bashio::log.info "Auto-detection enabled for USB and network scanners."
+bashio::log.info "AirScan configured for network scanner discovery."
