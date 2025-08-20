@@ -53,88 +53,19 @@ ${HA_IP}
 EOF
 
 # Configure dll.conf with auto-detection and optimal backends
-bashio::log.info "Configuring dll.conf with optimal brand-specific backends..."
-cat > /etc/sane.d/dll.conf << EOF
-# dll.conf - Optimized auto-detection configuration for major scanner brands
-
-# Network backends (always enabled)
+# Use predefined dll.conf if provided, otherwise create a minimal one
+bashio::log.info "Configuring dll.conf..."
+if [ -f /etc/sane.d/dll.conf ]; then
+    bashio::log.info "Using existing dll.conf with manually specified backends"
+else
+    bashio::log.info "Creating default dll.conf with basic backends"
+    cat > /etc/sane.d/dll.conf << 'EOF'
+# Default dll.conf - basic network and USB backends
 net
 airscan
-
-# Core auto-detection
 usb
-test
-
-# OPTIMAL BACKENDS BY BRAND:
-
-# Canon - PIXMA backend is best for most Canon scanners
-pixma
-canon
-canon_dr
-canon630u
-
-# Epson - epson2 is newer and better than old epson backend  
-epson2
-epson
-epsonds
-
-hp
-hpljm1005
-hp3500
-hp3900
-hp4200
-hp5400
-hp5590
-
-# Brother - brother backend family
-brother
-brother3
-brother4
-
-# Fujitsu - fujitsu backend for fi-series and ScanSnap
-fujitsu
-
-# Kodak - kodak backend for flatbeds + ADF
-kodak
-kodakaio
-
-# Plustek - plustek backend for USB models
-plustek
-plustek_pp
-
-# UMAX - umax backend for legacy devices
-umax
-umax1220u
-umax_pp
-
-# Lexmark - lexmark backend for older AIOs
-lexmark
-
-# Ricoh - uses fujitsu backend (Ricoh ADFs are rebadged Fujitsu)
-ricoh
-ricoh2
-
-# Sharp - sharp backend for niche models
-sharp
-
-# Additional common backends for comprehensive auto-detection
-genesys
-gt68xx
-microtek
-microtek2
-mustek
-mustek_usb
-mustek_usb2
-snapscan
-ma1509
-matsushita
-pie
-sm3840
-teco1
-teco2
-teco3
-u12
 EOF
+fi
 
 # Configure airscan.conf for network scanner discovery
 bashio::log.info "Configuring AirScan for network scanner discovery..."
