@@ -18,12 +18,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       bash ca-certificates curl dbus \
       avahi-daemon avahi-utils libnss-mdns \
       netcat-openbsd \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # --- SANE (driverless AirScan + classic backends)
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libsane1 libsane-common sane-utils sane-airscan libsane-hpaio \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # --- CUPS + filters + IPP-over-USB
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -31,7 +31,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       cups-filters cups-filters-core-drivers cups-browsed \
       ghostscript \
       ipp-usb \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # --- Broad printer drivers (brand coverage)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -42,7 +42,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       printer-driver-splix \
       printer-driver-fujixerox \
       printer-driver-foo2zjs \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # --- Build and install AirSane (eSCL/AirScan sharing for SANE devices)
 ARG AIRSANE_VERSION="v0.4.5"
@@ -57,7 +57,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && apt-get purge -y --auto-remove \
          build-essential cmake git \
          libjpeg-dev libpng-dev libusb-1.0-0-dev libavahi-client-dev libsane-dev \
-    && rm -rf /var/lib/apt/lists/*
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy s6-overlay v3 service definitions + helper scripts
 # Expecting your rootfs to use: /etc/s6-overlay/s6-rc.d/* (v3), /etc/cont-init.d/*, etc.
@@ -73,9 +73,12 @@ RUN chmod +x /usr/local/bin/configure-cups /usr/local/bin/configure-sane || true
     && chown -R root:root /etc/sane.d \
     && chmod 755 /var/lock/sane
 
-# Health check: CUPS scheduler up and AirSane HTTP port open
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
-  CMD lpstat -r >/dev/null 2>&1 && nc -z -w2 127.0.0.1 631 && nc -z -w2 127.0.0.1 8090 || exit 1
+# Health check: ensure CUPS scheduler is up and ports are open
+HEALTHCHECK --interval=5s --timeout=3s --start-period=30s --retries=30 \
+  CMD sh -c '\
+    lpstat -r >/dev/null 2>&1 && \
+    nc -z -w2 127.0.0.1 631 && \
+    nc -z -w2 127.0.0.1 8090'
 
 # Ports:
 # 631/tcp (IPP/CUPS), 8090/tcp (AirSane UI/API), 5353/udp (mDNS/Bonjour)

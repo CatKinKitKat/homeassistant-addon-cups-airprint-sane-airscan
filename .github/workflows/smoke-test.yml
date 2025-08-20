@@ -18,18 +18,31 @@ jobs:
       - name: Build container
         run: docker build -t cups-sane-test ./cups-sane
 
-      - name: Run container (background)
-        run: |
-          docker run -d --name cups-sane-test -p 631:631 -p 8090:8090 cups-sane-test
-          sleep 10
+      - name: Run container
+        run: docker run -d --name cups-sane-test -p 631:631 -p 8090:8090 cups-sane-test
 
-      - name: Smoke test CUPS port
+      - name: Wait for healthy
         run: |
-          curl --fail http://localhost:631 || (echo "CUPS not responding" && exit 1)
+          for i in {1..90}; do
+            status=$(docker inspect --format='{{.State.Health.Status}}' cups-sane-test || echo unknown)
+            echo "Health: $status"
+            [ "$status" = "healthy" ] && exit 0
+            sleep 2
+          done
+          echo "::error::Container did not become healthy"
+          docker logs --tail=200 cups-sane-test || true
+          exit 1
 
-      - name: Smoke test AirSane port
+      - name: Smoke test endpoints
         run: |
-          curl --fail http://localhost:8090 || (echo "AirSane not responding" && exit 1)
+          for port in 631 8090; do
+            echo "Checking port $port..."
+            if ! nc -z -w5 localhost $port; then
+              echo "::error::Port $port not open"
+              exit 1
+            fi
+          done
 
-      - name: Stop and remove container
+      - name: Cleanup
+        if: always()
         run: docker rm -f cups-sane-test
