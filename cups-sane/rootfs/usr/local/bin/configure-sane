@@ -60,10 +60,73 @@ if [ -f /etc/sane.d/dll.conf ]; then
 else
     bashio::log.info "Creating default dll.conf with basic backends"
     cat > /etc/sane.d/dll.conf << 'EOF'
-# Default dll.conf - basic network and USB backends
+# Core USB backend (moved to top)
+usb
+
+# Network backends
 net
 airscan
-usb
+
+# HP (market leader ~34%)
+hpaio
+# Legacy / device-specific HP backends
+#hp
+#hpljm1005
+#hp3500
+#hp3900
+#hp4200
+#hp5400
+#hp5590
+
+# Epson (~22%)
+epson2
+epson
+#epsonds   # old
+
+# Canon (~20%)
+pixma
+canon
+#canon_dr   # old
+#canon630u  # old
+
+# Brother (~10%)
+brother
+#brother3   # old
+#brother4   # old
+
+# Ricoh (~3-4%)
+ricoh
+ricoh2
+
+# Other vendors (<3% each, mostly legacy)
+#fujitsu
+#kodak
+#kodakaio
+#lexmark
+#sharp
+#plustek
+#plustek_pp
+#umax
+#umax1220u
+#umax_pp
+
+# Additional common backends
+genesys
+gt68xx
+microtek
+microtek2
+mustek
+mustek_usb
+mustek_usb2
+snapscan
+#ma1509      # very rare
+#matsushita  # very rare
+#pie         # very rare
+#sm3840      # very rare
+#teco1       # very rare
+#teco2       # very rare
+#teco3       # very rare
+#u12         # very rare
 EOF
 fi
 
